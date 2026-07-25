@@ -1,8 +1,12 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 const UserLogin = () => {
   const navigate = useNavigate();
+
+  // Get login function from AuthContext
+  const { login } = useAuth();
 
   const [formData, setFormData] = useState({
     email: "",
@@ -13,16 +17,18 @@ const UserLogin = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // ================= HANDLE INPUT =================
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     });
 
-    // Remove error when user starts typing
+    // Clear error when user starts typing
     setError("");
   };
 
+  // ================= HANDLE LOGIN =================
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -30,54 +36,25 @@ const UserLogin = () => {
     setLoading(true);
 
     try {
-      const response = await fetch(
-        "http://localhost:3000/users/login",
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type": "application/json",
-          },
-
-          // Important because your backend sets an HTTP-only cookie
-          credentials: "include",
-
-          body: JSON.stringify({
-            email: formData.email,
-            password: formData.password,
-          }),
-        }
+      // Call login function from AuthContext
+      await login(
+        formData.email,
+        formData.password
       );
 
-      const data = await response.json();
-
-      console.log("Login Response:", data);
-
-      // Backend returned error
-      if (!response.ok) {
-        setError(
-          data.message ||
-            data.errors?.[0]?.msg ||
-            "Login failed. Please try again."
-        );
-
-        return;
-      }
-
-      // Login successful
       console.log("Login successful");
 
-      // Optional: save token if you want to use it
-      // localStorage.setItem("token", data.token);
-
-      // Redirect to home page
+      // Redirect to home
       navigate("/");
+
     } catch (error) {
       console.error("Login Error:", error);
 
       setError(
-        "Unable to connect to the server. Please make sure the backend is running."
+        error.message ||
+        "Login failed. Please try again."
       );
+
     } finally {
       setLoading(false);
     }
@@ -127,10 +104,12 @@ const UserLogin = () => {
 
             <div>
 
+              {/* Logo */}
               <div className="mb-10 text-3xl font-bold">
                 Rider
               </div>
 
+              {/* Heading */}
               <h1 className="text-4xl font-bold leading-tight lg:text-5xl">
                 Welcome
                 <br />
@@ -146,6 +125,7 @@ const UserLogin = () => {
             </div>
 
 
+            {/* Bottom */}
             <div className="mt-16">
 
               <div className="mb-4 h-px w-full bg-gray-800" />
