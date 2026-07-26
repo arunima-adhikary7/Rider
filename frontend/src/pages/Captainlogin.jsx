@@ -74,7 +74,7 @@ const CaptainLogin = () => {
       // localStorage.setItem("token", data.token);
 
       // Redirect after successful login
-      navigate("/");
+      navigate("/captain-home");
 
     } catch (error) {
       console.error("Captain Login Error:", error);
