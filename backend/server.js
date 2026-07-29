@@ -6,6 +6,9 @@ const { Server } = require("socket.io");
 const app = require("./app");
 const connectDB = require("./db/db");
 
+const captainModel = require("./Models/Captain.model.js");
+const userModel = require("./Models/user.model.js");
+
 connectDB();
 
 const PORT = process.env.PORT || 3000;
@@ -36,17 +39,17 @@ io.on("connection", (socket) => {
     socket.id
   );
 
+
+  // =========================
+  // CAPTAIN JOINS
+  // =========================
+
   socket.on(
     "join-captain",
     async (captainId) => {
       try {
         console.log(
           `Captain ${captainId} connected with socket ${socket.id}`
-        );
-
-        // You need to update the captain's socketId
-        const captainModel = require(
-          "./Models/Captain.model.js"
         );
 
         await captainModel.findByIdAndUpdate(
@@ -56,6 +59,11 @@ io.on("connection", (socket) => {
             status: "active",
           }
         );
+
+        console.log(
+          "Captain socketId updated successfully"
+        );
+
       } catch (error) {
         console.error(
           "Captain socket error:",
@@ -65,34 +73,101 @@ io.on("connection", (socket) => {
     }
   );
 
-  socket.on("disconnect", async () => {
-    console.log(
-      "Socket disconnected:",
-      socket.id
-    );
 
-    try {
-      const captainModel = require(
-        "./Models/Captain.model.js"
-      );
+  // =========================
+  // USER JOINS
+  // =========================
 
-      await captainModel.findOneAndUpdate(
-        {
-          socketId: socket.id,
-        },
-        {
-          socketId: null,
-          status: "inactive",
-        }
-      );
-    } catch (error) {
-      console.error(
-        "Disconnect error:",
-        error
-      );
+  socket.on(
+    "join-user",
+    async (userId) => {
+      try {
+        console.log(
+          `User ${userId} connected with socket ${socket.id}`
+        );
+
+        await userModel.findByIdAndUpdate(
+          userId,
+          {
+            socketId: socket.id,
+          }
+        );
+
+        console.log(
+          "User socketId updated successfully"
+        );
+
+      } catch (error) {
+        console.error(
+          "User socket error:",
+          error
+        );
+      }
     }
-  });
+  );
+
+
+  // =========================
+  // DISCONNECT
+  // =========================
+
+  socket.on(
+    "disconnect",
+    async () => {
+
+      console.log(
+        "Socket disconnected:",
+        socket.id
+      );
+
+      try {
+
+        // =========================
+        // CAPTAIN OFFLINE
+        // =========================
+
+        await captainModel.findOneAndUpdate(
+          {
+            socketId: socket.id,
+          },
+          {
+            socketId: null,
+            status: "inactive",
+          }
+        );
+
+
+        // =========================
+        // USER SOCKET REMOVED
+        // =========================
+
+        await userModel.findOneAndUpdate(
+          {
+            socketId: socket.id,
+          },
+          {
+            socketId: null,
+          }
+        );
+
+
+        console.log(
+          "Socket cleanup completed"
+        );
+
+      } catch (error) {
+
+        console.error(
+          "Disconnect error:",
+          error
+        );
+
+      }
+    }
+  );
+
 });
+
 
 // =========================
 // START SERVER

@@ -12,6 +12,8 @@ import VehicleSelection from "./pages/VehicleSelection";
 import ConfirmRide from "./pages/ConfirmRide"
 import RideRequested from "./pages/RideRequest";
 import CaptainHome from "./pages/CaptainHome"
+import CaptainFound from "./pages/CaptainFound";
+import CaptainRideDetails from "./pages/CaptainRideDetails";
 const App = () => {
   return (
     <div>
@@ -59,6 +61,11 @@ const App = () => {
 <Route
   path="/captain-home"
   element={<CaptainHome />}
+/>
+<Route path="/captain-found" element={<CaptainFound />} />
+<Route
+  path="/captain-ride-details"
+  element={<CaptainRideDetails />}
 />
       </Routes>
 

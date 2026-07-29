@@ -8,10 +8,9 @@ const rideSchema = new mongoose.Schema(
 
     user: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "user",
+      ref: "User",
       required: true,
     },
-
 
     // ==========================================
     // CAPTAIN WHO ACCEPTED THE RIDE
@@ -23,6 +22,15 @@ const rideSchema = new mongoose.Schema(
       default: null,
     },
 
+    // ==========================================
+    // CAPTAIN ETA
+    // How many minutes captain needs to reach pickup
+    // ==========================================
+
+    captainEta: {
+      type: Number,
+      default: null,
+    },
 
     // ==========================================
     // PICKUP LOCATION
@@ -45,7 +53,6 @@ const rideSchema = new mongoose.Schema(
       },
     },
 
-
     // ==========================================
     // DESTINATION LOCATION
     // ==========================================
@@ -67,7 +74,6 @@ const rideSchema = new mongoose.Schema(
       },
     },
 
-
     // ==========================================
     // DISTANCE
     // ==========================================
@@ -77,7 +83,6 @@ const rideSchema = new mongoose.Schema(
       required: true,
     },
 
-
     // ==========================================
     // ESTIMATED DURATION
     // ==========================================
@@ -86,7 +91,6 @@ const rideSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
-
 
     // ==========================================
     // SELECTED VEHICLE TYPE
@@ -102,7 +106,6 @@ const rideSchema = new mongoose.Schema(
       required: true,
     },
 
-
     // ==========================================
     // ESTIMATED FARE
     // ==========================================
@@ -111,7 +114,6 @@ const rideSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
-
 
     // ==========================================
     // RIDE STATUS
@@ -123,24 +125,29 @@ const rideSchema = new mongoose.Schema(
       enum: [
         "searching",
         "accepted",
+        "captain_arrived",
         "started",
         "completed",
         "cancelled",
       ],
 
-      // IMPORTANT:
-      // When user requests ride,
-      // ride starts in searching state.
-
       default: "searching",
     },
   },
+
+  // ==========================================
+  // SCHEMA OPTIONS
+  // ==========================================
 
   {
     timestamps: true,
   }
 );
 
+
+// ==========================================
+// EXPORT MODEL
+// ==========================================
 
 module.exports = mongoose.model(
   "ride",

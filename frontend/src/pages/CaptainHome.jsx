@@ -115,27 +115,46 @@ const CaptainHome = () => {
   // ACCEPT RIDE
   // =========================
 
-  const handleAcceptRide = () => {
-    if (!rideRequest) {
-      return;
+const handleAcceptRide = async () => {
+  if (!rideRequest?.rideId) {
+    return;
+  }
+
+  try {
+    setError("");
+
+    const response = await fetch(
+      `http://localhost:3000/rides/${rideRequest.rideId}/accept`,
+      {
+        method: "POST",
+        credentials: "include",
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data.message || "Unable to accept ride"
+      );
     }
 
-    /*
-      Backend accept ride API will be connected here.
+    console.log("Ride accepted successfully:", data);
 
-      Example later:
+    // Remove the request from Captain dashboard
+    setRideRequest(null);
 
-      POST /rides/:rideId/accept
+    // For now, stay on CaptainHome
+    // Later we will navigate to ActiveRide page
 
-      For now we only show the received
-      ride request.
-    */
+  } catch (error) {
+    console.error("Accept ride error:", error);
 
-    console.log(
-      "Accept ride:",
-      rideRequest.rideId
+    setError(
+      error.message || "Unable to accept ride"
     );
-  };
+  }
+};
 
   // =========================
   // LOADING

@@ -311,8 +311,8 @@ module.exports.acceptRide = async (req, res) => {
         },
 
         {
-          new: true,
-        }
+  returnDocument: "after",
+}
 
       );
 
@@ -436,4 +436,298 @@ module.exports.acceptRide = async (req, res) => {
 
   }
 
+};
+
+// =====================================================
+// UPDATE CAPTAIN ETA
+// =====================================================
+
+module.exports.updateCaptainEta = async (req, res) => {
+  try {
+    console.log("========== UPDATE CAPTAIN ETA ==========");
+
+    const { rideId } = req.params;
+    const { eta } = req.body;
+
+    // =====================================================
+    // CHECK AUTHENTICATED CAPTAIN
+    // =====================================================
+
+    if (!req.captain) {
+      return res.status(401).json({
+        message: "Captain is not authenticated",
+      });
+    }
+
+    // =====================================================
+    // VALIDATE ETA
+    // =====================================================
+
+    if (
+      eta === undefined ||
+      eta === null ||
+      Number(eta) <= 0
+    ) {
+      return res.status(400).json({
+        message: "Please provide a valid ETA",
+      });
+    }
+
+    // =====================================================
+    // FIND RIDE
+    // =====================================================
+
+    const ride = await rideModel
+      .findOne({
+        _id: rideId,
+        captain: req.captain._id,
+      })
+      .populate("user")
+      .populate("captain");
+
+    if (!ride) {
+      return res.status(404).json({
+        message: "Ride not found",
+      });
+    }
+
+    // =====================================================
+    // CHECK RIDE STATUS
+    // =====================================================
+
+    if (ride.status !== "accepted") {
+      return res.status(400).json({
+        message:
+          "ETA can only be updated for an accepted ride",
+      });
+    }
+
+    // =====================================================
+    // UPDATE ETA
+    // =====================================================
+
+    ride.captainEta = Number(eta);
+
+    await ride.save();
+
+    console.log(
+      `Captain ETA updated to ${ride.captainEta} minutes`
+    );
+
+    // =====================================================
+    // SEND ETA TO USER USING SOCKET.IO
+    // =====================================================
+
+    const io = req.app.get("io");
+
+    if (
+      io &&
+      ride.user &&
+      ride.user.socketId
+    ) {
+      io.to(ride.user.socketId).emit(
+        "captain-eta-updated",
+        {
+          rideId: ride._id,
+          eta: ride.captainEta,
+        }
+      );
+
+      console.log(
+        "ETA sent to user successfully"
+      );
+    } else {
+      console.log(
+        "User socket not available"
+      );
+    }
+
+    // =====================================================
+    // RESPONSE
+    // =====================================================
+
+    return res.status(200).json({
+      message: "ETA updated successfully",
+      eta: ride.captainEta,
+      ride,
+    });
+
+  } catch (error) {
+    console.error(
+      "========== UPDATE ETA ERROR =========="
+    );
+
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Unable to update ETA",
+      error: error.message,
+    });
+  }
+};
+// =====================================================
+// UPDATE RIDE STATUS
+// =====================================================
+
+module.exports.updateRideStatus = async (req, res) => {
+  try {
+    console.log("========== UPDATE RIDE STATUS ==========");
+
+    const { rideId } = req.params;
+    const { status } = req.body;
+
+    // =====================================================
+    // CHECK AUTHENTICATED CAPTAIN
+    // =====================================================
+
+    if (!req.captain) {
+      return res.status(401).json({
+        message: "Captain is not authenticated",
+      });
+    }
+
+    // =====================================================
+    // VALID STATUS VALUES
+    // =====================================================
+
+    const allowedStatuses = [
+      "accepted",
+      "captain_arrived",
+      "started",
+      "completed",
+      "cancelled",
+    ];
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        message: "Invalid ride status",
+      });
+    }
+
+    // =====================================================
+    // FIND RIDE
+    // =====================================================
+
+    const ride = await rideModel.findOne({
+      _id: rideId,
+      captain: req.captain._id,
+    });
+
+    if (!ride) {
+      return res.status(404).json({
+        message: "Ride not found or ride does not belong to you",
+      });
+    }
+
+    // =====================================================
+    // CHECK VALID STATUS TRANSITIONS
+    // =====================================================
+
+    if (
+      status === "captain_arrived" &&
+      ride.status !== "accepted"
+    ) {
+      return res.status(400).json({
+        message:
+          "Captain can mark arrived only after accepting the ride",
+      });
+    }
+
+    if (
+      status === "started" &&
+      ride.status !== "captain_arrived"
+    ) {
+      return res.status(400).json({
+        message:
+          "Ride can start only after captain arrives",
+      });
+    }
+
+    if (
+      status === "completed" &&
+      ride.status !== "started"
+    ) {
+      return res.status(400).json({
+        message:
+          "Ride can be completed only after it has started",
+      });
+    }
+
+    // =====================================================
+    // UPDATE RIDE
+    // =====================================================
+
+    ride.status = status;
+
+    // When captain arrives, ETA becomes 0
+    if (status === "captain_arrived") {
+      ride.captainEta = 0;
+    }
+
+    await ride.save();
+
+    // =====================================================
+    // POPULATE USER AND CAPTAIN
+    // =====================================================
+
+    const updatedRide = await rideModel
+      .findById(ride._id)
+      .populate("user")
+      .populate("captain");
+
+    console.log(
+      "Ride status updated:",
+      updatedRide.status
+    );
+
+    // =====================================================
+    // SOCKET.IO
+    // =====================================================
+
+    const io = req.app.get("io");
+
+    if (
+      io &&
+      updatedRide.user &&
+      updatedRide.user.socketId
+    ) {
+      io.to(
+        updatedRide.user.socketId
+      ).emit(
+        "ride-status-updated",
+        {
+          rideId: updatedRide._id,
+          status: updatedRide.status,
+          captainEta: updatedRide.captainEta,
+          ride: updatedRide,
+        }
+      );
+
+      console.log(
+        "Ride status sent to user"
+      );
+    }
+
+    // =====================================================
+    // RESPONSE
+    // =====================================================
+
+    return res.status(200).json({
+      message: "Ride status updated successfully",
+
+      ride: updatedRide,
+    });
+
+  } catch (error) {
+    console.error(
+      "========== UPDATE RIDE STATUS ERROR =========="
+    );
+
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Unable to update ride status",
+      error: error.message,
+    });
+  }
 };
