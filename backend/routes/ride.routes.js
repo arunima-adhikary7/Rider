@@ -31,5 +31,15 @@ router.post(
   rideController.acceptRide
 );
 
+router.patch(
+  "/:rideId/eta",
+  authCaptain,
+  rideController.updateCaptainEta
+);
 
+router.patch(
+  "/:rideId/status",
+  authCaptain,
+  rideController.updateRideStatus
+);
 module.exports = router;
