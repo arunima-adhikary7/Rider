@@ -20,8 +20,10 @@
     "express": "^5.2.1",
     "express-validator": "^7.3.2",
     "jsonwebtoken": "^9.0.3",
+    "leaflet": "^1.9.4",
     "mongoose": "^9.7.4",
     "nodemon": "^3.1.14",
+    "react-leaflet": "^5.0.0",
     "socket.io": "^4.8.3"
   }
 }

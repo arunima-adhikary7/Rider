@@ -1,7 +1,7 @@
-
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
+import CaptainLiveMap from "../pages/CaptainLiveMap";
 
 const CaptainFound = () => {
   const navigate = useNavigate();
@@ -14,75 +14,322 @@ const CaptainFound = () => {
   const initialRide = location.state?.ride || null;
 
   const [ride, setRide] = useState(initialRide);
+
   const [loading, setLoading] = useState(!initialRide);
+
   const [error, setError] = useState("");
+
+  // =====================================================
+  // CAPTAIN LIVE LOCATION
+  // =====================================================
+
+  const [captainLocation, setCaptainLocation] =
+    useState(null);
+
+  // =====================================================
+  // LOCATION CONNECTION STATUS
+  // =====================================================
+
+  const [locationStatus, setLocationStatus] =
+    useState("connecting");
 
   // =====================================================
   // SOCKET.IO
   // =====================================================
 
   useEffect(() => {
-    const socket = io("http://localhost:3000", {
-      withCredentials: true,
-    });
+    // ---------------------------------------------------
+    // We need ride ID to join ride room
+    // ---------------------------------------------------
 
-    console.log("User socket connecting...");
-
-    socket.on("connect", () => {
+    if (!ride?._id) {
       console.log(
-        "User socket connected:",
-        socket.id
+        "Ride ID not available yet"
       );
 
-      /*
-        IMPORTANT:
+      return;
+    }
 
-        Your backend currently sends "ride-accepted"
-        to:
+    console.log(
+      "Starting user socket for ride:",
+      ride._id
+    );
 
-        user.socketId
+    // ---------------------------------------------------
+    // CREATE SOCKET CONNECTION
+    // ---------------------------------------------------
 
-        So the user must join the socket and
-        save socketId in the User database.
-
-        We will connect this part after adding
-        socketId to your User model.
-      */
-    });
-
-    // =====================================================
-    // RIDE ACCEPTED
-    // =====================================================
-
-    socket.on("ride-accepted", (data) => {
-      console.log(
-        "Captain accepted the ride:",
-        data
-      );
-
-      if (data.ride) {
-        setRide(data.ride);
+    const socket = io(
+      "http://localhost:3000",
+      {
+        withCredentials: true,
       }
+    );
 
-      setLoading(false);
-    });
+    console.log(
+      "User socket connecting..."
+    );
 
-    // =====================================================
-    // SOCKET ERROR
-    // =====================================================
+    // ===================================================
+    // SOCKET CONNECTED
+    // ===================================================
 
-    socket.on("connect_error", (error) => {
-      console.error(
-        "User socket connection error:",
-        error
-      );
+    socket.on(
+      "connect",
+      () => {
+        console.log(
+          "User socket connected:",
+          socket.id
+        );
 
-      setError(
-        "Unable to connect to Rider network."
-      );
+        setLocationStatus(
+          "connected"
+        );
 
-      setLoading(false);
-    });
+        // ------------------------------------------------
+        // GET USER ID
+        // ------------------------------------------------
+
+        const userId =
+          localStorage.getItem(
+            "userId"
+          );
+
+        console.log(
+          "User ID:",
+          userId
+        );
+
+        // ------------------------------------------------
+        // JOIN USER
+        // ------------------------------------------------
+
+        if (userId) {
+          socket.emit(
+            "join-user",
+            userId
+          );
+
+          console.log(
+            "User joined socket:",
+            userId
+          );
+        }
+
+        // ------------------------------------------------
+        // JOIN RIDE ROOM
+        // ------------------------------------------------
+
+        socket.emit(
+          "join-ride",
+          {
+            rideId: ride._id,
+            userId,
+          }
+        );
+
+        console.log(
+          "User joined ride room:",
+          `ride-${ride._id}`
+        );
+      }
+    );
+
+    // ===================================================
+    // CAPTAIN LOCATION UPDATED
+    // ===================================================
+
+    socket.on(
+      "captain-location-updated",
+      (data) => {
+        console.log(
+          "Captain live location received:",
+          data
+        );
+
+        // -----------------------------------------------
+        // Check correct ride
+        // -----------------------------------------------
+
+        if (
+          data.rideId &&
+          data.rideId !== ride._id
+        ) {
+          console.log(
+            "Location belongs to another ride"
+          );
+
+          return;
+        }
+
+        // -----------------------------------------------
+        // Save captain location
+        // -----------------------------------------------
+
+        if (
+          data.location
+        ) {
+          setCaptainLocation(
+            data.location
+          );
+
+          setLocationStatus(
+            "live"
+          );
+        }
+      }
+    );
+
+    // ===================================================
+    // CAPTAIN ETA UPDATED
+    // ===================================================
+
+    socket.on(
+      "captain-eta-updated",
+      (data) => {
+        console.log(
+          "Captain ETA received:",
+          data
+        );
+
+        if (
+          data.rideId &&
+          data.rideId !== ride._id
+        ) {
+          return;
+        }
+
+        // -----------------------------------------------
+        // Update ride ETA
+        // -----------------------------------------------
+
+        if (
+          data.eta !== undefined
+        ) {
+          setRide(
+            (previousRide) => ({
+              ...previousRide,
+
+              captainEta:
+                data.eta,
+            })
+          );
+        }
+      }
+    );
+
+    // ===================================================
+    // RIDE STATUS UPDATED
+    // ===================================================
+
+    socket.on(
+      "ride-status-updated",
+      (data) => {
+        console.log(
+          "Ride status updated:",
+          data
+        );
+
+        if (
+          data.rideId &&
+          data.rideId !== ride._id
+        ) {
+          return;
+        }
+
+        // -----------------------------------------------
+        // Update full ride
+        // -----------------------------------------------
+
+        if (data.ride) {
+          setRide(
+            data.ride
+          );
+        }
+
+        // -----------------------------------------------
+        // If only status received
+        // -----------------------------------------------
+
+        else if (data.status) {
+          setRide(
+            (previousRide) => ({
+              ...previousRide,
+
+              status:
+                data.status,
+            })
+          );
+        }
+      }
+    );
+
+    // ===================================================
+    // RIDE ACCEPTED
+    // ===================================================
+
+    socket.on(
+      "ride-accepted",
+      (data) => {
+        console.log(
+          "Captain accepted ride:",
+          data
+        );
+
+        if (data.ride) {
+          setRide(
+            data.ride
+          );
+        }
+
+        setLoading(false);
+      }
+    );
+
+    // ===================================================
+    // SOCKET CONNECT ERROR
+    // ===================================================
+
+    socket.on(
+      "connect_error",
+      (socketError) => {
+        console.error(
+          "User socket connection error:",
+          socketError
+        );
+
+        setLocationStatus(
+          "error"
+        );
+
+        setError(
+          "Unable to connect to Rider live location service."
+        );
+
+        setLoading(false);
+      }
+    );
+
+    // ===================================================
+    // SOCKET DISCONNECTED
+    // ===================================================
+
+    socket.on(
+      "disconnect",
+      () => {
+        console.log(
+          "User socket disconnected"
+        );
+
+        setLocationStatus(
+          "disconnected"
+        );
+      }
+    );
+
+    // ===================================================
+    // CLEANUP
+    // ===================================================
 
     return () => {
       console.log(
@@ -91,7 +338,9 @@ const CaptainFound = () => {
 
       socket.disconnect();
     };
-  }, []);
+
+  }, [ride?._id]);
+
 
   // =====================================================
   // LOADING
@@ -125,14 +374,16 @@ const CaptainFound = () => {
             <span
               className="h-2 w-2 animate-pulse rounded-full bg-black"
               style={{
-                animationDelay: "150ms",
+                animationDelay:
+                  "150ms",
               }}
             />
 
             <span
               className="h-2 w-2 animate-pulse rounded-full bg-black"
               style={{
-                animationDelay: "300ms",
+                animationDelay:
+                  "300ms",
               }}
             />
 
@@ -143,6 +394,7 @@ const CaptainFound = () => {
       </div>
     );
   }
+
 
   // =====================================================
   // ERROR
@@ -167,7 +419,9 @@ const CaptainFound = () => {
           </p>
 
           <button
-            onClick={() => navigate("/")}
+            onClick={() =>
+              navigate("/")
+            }
             className="mt-6 w-full rounded-2xl bg-black px-6 py-4 text-sm font-bold text-white transition hover:bg-gray-800"
           >
             Back to Home
@@ -179,11 +433,13 @@ const CaptainFound = () => {
     );
   }
 
+
   // =====================================================
   // CAPTAIN DATA
   // =====================================================
 
-  const captain = ride?.captain;
+  const captain =
+    ride?.captain;
 
   const captainFirstName =
     captain?.fullname?.firstname ||
@@ -196,18 +452,22 @@ const CaptainFound = () => {
   const captainName =
     `${captainFirstName} ${captainLastName}`.trim();
 
+
   const vehicleType =
     captain?.vehicle?.vehicleType ||
     ride?.vehicleType ||
     "car";
 
+
   const vehicleColor =
     captain?.vehicle?.color ||
     "Not specified";
 
+
   const vehiclePlate =
     captain?.vehicle?.plate ||
     "Not available";
+
 
   // =====================================================
   // VEHICLE ICON
@@ -220,13 +480,15 @@ const CaptainFound = () => {
       ? "🛺"
       : "🚗";
 
+
   // =====================================================
-  // CANCEL / BACK
+  // BACK HOME
   // =====================================================
 
   const handleBackHome = () => {
     navigate("/");
   };
+
 
   // =====================================================
   // UI
@@ -244,6 +506,7 @@ const CaptainFound = () => {
         <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4">
 
           <div>
+
             <h1 className="text-2xl font-black tracking-tight text-black">
               Rider
             </h1>
@@ -251,6 +514,7 @@ const CaptainFound = () => {
             <p className="text-xs font-medium text-gray-400">
               Your ride is confirmed
             </p>
+
           </div>
 
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-50">
@@ -271,6 +535,7 @@ const CaptainFound = () => {
       ================================================= */}
 
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-5">
+
 
         {/* =================================================
             SUCCESS BANNER
@@ -297,19 +562,163 @@ const CaptainFound = () => {
               </h2>
 
               <p className="mt-3 max-w-xl text-sm leading-6 text-gray-400">
-                Your ride has been accepted. Your captain
-                will pick you up from your selected location.
+                Your ride has been accepted.
+                Your captain will pick you up
+                from your selected location.
               </p>
 
             </div>
 
             <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl bg-white text-4xl">
+
               {vehicleIcon}
+
             </div>
 
           </div>
 
         </section>
+
+
+        {/* =================================================
+            LIVE CAPTAIN LOCATION MAP
+        ================================================= */}
+
+        <section className="mt-6 overflow-hidden rounded-3xl bg-white shadow-sm">
+
+          <div className="relative h-[450px] w-full">
+
+            <CaptainLiveMap
+              captainLocation={
+                captainLocation
+              }
+              pickup={
+                ride?.pickup
+              }
+              destination={
+                ride?.destination
+              }
+            />
+
+          </div>
+
+
+          {/* LOCATION INFORMATION */}
+
+          <div className="p-5">
+
+            <div className="flex items-center gap-4">
+
+              <div
+                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-xl text-white ${
+                  locationStatus ===
+                  "live"
+                    ? "bg-green-500"
+                    : locationStatus ===
+                      "error"
+                    ? "bg-red-500"
+                    : "bg-yellow-500"
+                }`}
+              >
+                📍
+              </div>
+
+
+              <div className="flex-1">
+
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
+                  Captain Location
+                </p>
+
+
+                {locationStatus ===
+                  "live" &&
+                captainLocation ? (
+                  <>
+
+                    <p className="mt-1 text-lg font-black text-green-700">
+                      Captain is moving
+                    </p>
+
+                    <p className="mt-1 text-xs text-gray-500">
+                      GPS:{" "}
+                      {captainLocation.lat.toFixed(
+                        6
+                      )}
+                      {" , "}
+                      {captainLocation.lng.toFixed(
+                        6
+                      )}
+                    </p>
+
+                  </>
+
+                ) : locationStatus ===
+                  "connected" ? (
+
+                  <p className="mt-1 text-sm font-bold text-yellow-600">
+                    Waiting for captain location...
+                  </p>
+
+                ) : locationStatus ===
+                  "error" ? (
+
+                  <p className="mt-1 text-sm font-bold text-red-600">
+                    Location unavailable
+                  </p>
+
+                ) : (
+
+                  <p className="mt-1 text-sm font-bold text-gray-600">
+                    Connecting...
+                  </p>
+
+                )}
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        {/* =================================================
+            ETA
+        ================================================= */}
+
+        {ride?.captainEta && (
+
+          <section className="mt-4 rounded-3xl border border-blue-100 bg-blue-50 p-5">
+
+            <div className="flex items-center gap-4">
+
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500 text-xl text-white">
+                ⏱️
+              </div>
+
+              <div>
+
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-500">
+                  Captain ETA
+                </p>
+
+                <p className="mt-1 text-xl font-black text-blue-900">
+                  {ride.captainEta} minutes
+                </p>
+
+                <p className="mt-1 text-sm text-blue-700">
+                  Your captain is on the way.
+                </p>
+
+              </div>
+
+            </div>
+
+          </section>
+
+        )}
 
 
         {/* =================================================
@@ -320,8 +729,6 @@ const CaptainFound = () => {
 
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
 
-            {/* AVATAR */}
-
             <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-black text-2xl font-black text-white">
 
               {captainFirstName
@@ -330,8 +737,6 @@ const CaptainFound = () => {
 
             </div>
 
-
-            {/* CAPTAIN INFO */}
 
             <div className="flex-1">
 
@@ -361,8 +766,6 @@ const CaptainFound = () => {
 
             </div>
 
-
-            {/* CALL BUTTON */}
 
             <button
               className="flex h-12 w-12 items-center justify-center rounded-full bg-green-50 text-xl transition hover:bg-green-100"
@@ -446,11 +849,7 @@ const CaptainFound = () => {
           </p>
 
 
-          {/* ROUTE */}
-
           <div className="mt-6 flex gap-4">
-
-            {/* ROUTE LINE */}
 
             <div className="flex flex-col items-center">
 
@@ -462,8 +861,6 @@ const CaptainFound = () => {
 
             </div>
 
-
-            {/* LOCATIONS */}
 
             <div className="min-w-0 flex-1">
 
@@ -498,8 +895,6 @@ const CaptainFound = () => {
 
           </div>
 
-
-          {/* TRIP STATS */}
 
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
 
@@ -544,7 +939,8 @@ const CaptainFound = () => {
               </p>
 
               <p className="mt-1 font-bold text-gray-900">
-                ${ride?.estimatedFare
+                ₹
+                {ride?.estimatedFare
                   ? Number(
                       ride.estimatedFare
                     ).toFixed(2)
@@ -573,11 +969,27 @@ const CaptainFound = () => {
             <div>
 
               <p className="font-black text-green-900">
-                Ride Accepted
+
+                {ride?.status ===
+                "started"
+                  ? "Ride In Progress"
+                  : ride?.status ===
+                    "captain_arrived"
+                  ? "Captain Has Arrived"
+                  : "Ride Accepted"}
+
               </p>
 
               <p className="mt-1 text-sm text-green-700">
-                Your captain has accepted your ride request.
+
+                {ride?.status ===
+                "started"
+                  ? "Your ride is currently in progress."
+                  : ride?.status ===
+                    "captain_arrived"
+                  ? "Your captain has arrived at the pickup location."
+                  : "Your captain has accepted your ride request."}
+
               </p>
 
             </div>
@@ -592,7 +1004,9 @@ const CaptainFound = () => {
         ================================================= */}
 
         <button
-          onClick={handleBackHome}
+          onClick={
+            handleBackHome
+          }
           className="mt-6 w-full rounded-2xl border border-gray-200 bg-white px-6 py-4 text-sm font-bold text-gray-700 transition hover:bg-gray-50"
         >
           Back to Home
@@ -605,4 +1019,3 @@ const CaptainFound = () => {
 };
 
 export default CaptainFound;
-

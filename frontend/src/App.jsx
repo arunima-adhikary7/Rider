@@ -14,6 +14,7 @@ import RideRequested from "./pages/RideRequest";
 import CaptainHome from "./pages/CaptainHome"
 import CaptainFound from "./pages/CaptainFound";
 import CaptainRideDetails from "./pages/CaptainRideDetails";
+import UserLiveRideTracking from "./pages/UserLiveRideTracking";
 const App = () => {
   return (
     <div>
@@ -66,6 +67,12 @@ const App = () => {
 <Route
   path="/captain-ride-details"
   element={<CaptainRideDetails />}
+/>
+
+
+<Route
+  path="/user-live-ride-tracking"
+  element={<UserLiveRideTracking />}
 />
       </Routes>
 

@@ -42,4 +42,9 @@ router.patch(
   authCaptain,
   rideController.updateRideStatus
 );
+router.patch(
+  "/:rideId/location",
+  authCaptain,
+  rideController.updateCaptainLocation
+);
 module.exports = router;

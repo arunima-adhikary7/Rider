@@ -730,4 +730,100 @@ module.exports.updateRideStatus = async (req, res) => {
       error: error.message,
     });
   }
+ };
+module.exports.updateCaptainLocation = async (req, res) => {
+  try {
+    const { rideId } = req.params;
+    const { lat, lng } = req.body;
+
+    if (!req.captain) {
+      return res.status(401).json({
+        message: "Captain is not authenticated",
+      });
+    }
+
+    if (
+      lat === undefined ||
+      lng === undefined ||
+      Number.isNaN(Number(lat)) ||
+      Number.isNaN(Number(lng))
+    ) {
+      return res.status(400).json({
+        message: "Valid latitude and longitude are required",
+      });
+    }
+
+    const ride = await rideModel
+      .findOne({
+        _id: rideId,
+        captain: req.captain._id,
+      })
+      .populate("user")
+      .populate("captain");
+
+    if (!ride) {
+      return res.status(404).json({
+        message: "Ride not found or ride does not belong to you",
+      });
+    }
+
+    if (
+      ride.status === "completed" ||
+      ride.status === "cancelled"
+    ) {
+      return res.status(400).json({
+        message: "Location cannot be updated for this ride",
+      });
+    }
+
+    const latitude = Number(lat);
+    const longitude = Number(lng);
+
+    ride.captain.vehicle.location = {
+      lat: latitude,
+      lng: longitude,
+    };
+
+    await ride.captain.save();
+
+    const io = req.app.get("io");
+
+    if (
+      io &&
+      ride.user &&
+      ride.user.socketId
+    ) {
+      io.to(ride.user.socketId).emit(
+        "captain-location-updated",
+        {
+          rideId: ride._id,
+          captainId: ride.captain._id,
+          location: {
+            lat: latitude,
+            lng: longitude,
+          },
+        }
+      );
+    }
+
+    return res.status(200).json({
+      message: "Captain location updated successfully",
+      location: {
+        lat: latitude,
+        lng: longitude,
+      },
+    });
+
+  } catch (error) {
+    console.error(
+      "========== UPDATE CAPTAIN LOCATION ERROR =========="
+    );
+
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Unable to update captain location",
+      error: error.message,
+    });
+  }
 };
