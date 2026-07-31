@@ -1,15 +1,12 @@
 
-import { useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { io } from "socket.io-client";
 
 const CaptainRideDetails = () => {
   const navigate = useNavigate();
   const location = useLocation();
-
-  // =====================================================
-  // INITIAL RIDE DATA
-  // =====================================================
 
   const initialRide = location.state?.ride || null;
 
@@ -21,17 +18,23 @@ const CaptainRideDetails = () => {
     initialRide?.captainEta || null
   );
 
-  // =====================================================
-  // USER DETAILS
-  // =====================================================
+  const [locationStatus, setLocationStatus] = useState(
+    "connecting"
+  );
+
+  const [captainLocation, setCaptainLocation] = useState(null);
 
   const user = ride?.user || null;
 
   const userFirstName =
-    user?.fullname?.firstname || "";
+    user?.fullname?.firstname ||
+    user?.fullname?.firstName ||
+    "";
 
   const userLastName =
-    user?.fullname?.lastname || "";
+    user?.fullname?.lastname ||
+    user?.fullname?.lastName ||
+    "";
 
   const userName =
     `${userFirstName} ${userLastName}`.trim() ||
@@ -39,10 +42,6 @@ const CaptainRideDetails = () => {
 
   const userEmail =
     user?.email || "Email not available";
-
-  // =====================================================
-  // VEHICLE
-  // =====================================================
 
   const vehicleType =
     ride?.vehicleType || "car";
@@ -54,16 +53,8 @@ const CaptainRideDetails = () => {
       ? "🛺"
       : "🚗";
 
-  // =====================================================
-  // RIDE STATUS
-  // =====================================================
-
   const rideStatus =
     ride?.status || "accepted";
-
-  // =====================================================
-  // STATUS TEXT
-  // =====================================================
 
   const getStatusText = () => {
     switch (rideStatus) {
@@ -87,10 +78,6 @@ const CaptainRideDetails = () => {
     }
   };
 
-  // =====================================================
-  // STATUS COLOR
-  // =====================================================
-
   const getStatusColor = () => {
     switch (rideStatus) {
       case "started":
@@ -110,17 +97,12 @@ const CaptainRideDetails = () => {
     }
   };
 
-  // =====================================================
-  // GET AUTH CONFIG
-  // =====================================================
-
   const getAuthConfig = () => {
     const token =
       localStorage.getItem("token");
 
     return {
       withCredentials: true,
-
       headers: token
         ? {
             Authorization: `Bearer ${token}`,
@@ -129,9 +111,181 @@ const CaptainRideDetails = () => {
     };
   };
 
-  // =====================================================
-  // UPDATE RIDE STATUS
-  // =====================================================
+  useEffect(() => {
+    if (!ride?._id) {
+      return;
+    }
+
+    const token =
+      localStorage.getItem("token");
+
+    const captainId =
+      ride?.captain?._id ||
+      ride?.captainId ||
+      localStorage.getItem("captainId");
+
+    if (!captainId) {
+      setLocationStatus("error");
+      setError(
+        "Captain ID not found. Please login again."
+      );
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      setLocationStatus("error");
+      setError(
+        "Geolocation is not supported by your browser."
+      );
+      return;
+    }
+
+    const socket = io(
+      "http://localhost:3000",
+      {
+        withCredentials: true,
+        transports: ["websocket"],
+        auth: token
+          ? {
+              token,
+            }
+          : undefined,
+      }
+    );
+
+    let watchId = null;
+
+    socket.on("connect", () => {
+      console.log(
+        "Captain socket connected:",
+        socket.id
+      );
+
+      setLocationStatus("connected");
+
+      socket.emit(
+        "join-captain",
+        captainId
+      );
+
+      socket.emit(
+        "join-captain-ride",
+        {
+          rideId: ride._id,
+        }
+      );
+
+      watchId =
+        navigator.geolocation.watchPosition(
+          (position) => {
+            const lat =
+              position.coords.latitude;
+
+            const lng =
+              position.coords.longitude;
+
+            const newLocation = {
+              lat,
+              lng,
+            };
+
+            setCaptainLocation(
+              newLocation
+            );
+
+            socket.emit(
+              "captain-location-update",
+              {
+                rideId: ride._id,
+                captainId,
+                lat,
+                lng,
+              }
+            );
+
+            console.log(
+              "Captain location sent:",
+              {
+                lat,
+                lng,
+              }
+            );
+          },
+          (geoError) => {
+            console.error(
+              "Captain GPS error:",
+              geoError
+            );
+
+            setLocationStatus("error");
+
+            if (
+              geoError.code ===
+              geoError.PERMISSION_DENIED
+            ) {
+              setError(
+                "Location permission denied. Please allow location access."
+              );
+            } else if (
+              geoError.code ===
+              geoError.POSITION_UNAVAILABLE
+            ) {
+              setError(
+                "Your current location is unavailable."
+              );
+            } else if (
+              geoError.code ===
+              geoError.TIMEOUT
+            ) {
+              setError(
+                "Location request timed out."
+              );
+            }
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 5000,
+          }
+        );
+    });
+
+    socket.on(
+      "connect_error",
+      (socketError) => {
+        console.error(
+          "Captain socket error:",
+          socketError
+        );
+
+        setLocationStatus("error");
+
+        setError(
+          "Unable to connect to live location service."
+        );
+      }
+    );
+
+    socket.on("disconnect", () => {
+      console.log(
+        "Captain socket disconnected"
+      );
+
+      setLocationStatus(
+        "disconnected"
+      );
+    });
+
+    return () => {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(
+          watchId
+        );
+      }
+
+      socket.disconnect();
+    };
+  }, [ride?._id]);
 
   const updateRideStatus = async (status) => {
     if (!ride?._id) {
@@ -164,9 +318,9 @@ const CaptainRideDetails = () => {
       if (response.data.ride) {
         setRide(response.data.ride);
 
-        // Update ETA state also
         setSelectedEta(
-          response.data.ride.captainEta || null
+          response.data.ride.captainEta ||
+            null
         );
       }
 
@@ -180,22 +334,16 @@ const CaptainRideDetails = () => {
         error.response?.data?.message ||
         "Unable to update ride status"
       );
-
     } finally {
       setLoading(false);
     }
   };
-
-  // =====================================================
-  // UPDATE CAPTAIN ETA
-  // =====================================================
 
   const handleSetEta = async () => {
     if (!selectedEta) {
       setError(
         "Please select your arrival time"
       );
-
       return;
     }
 
@@ -207,11 +355,6 @@ const CaptainRideDetails = () => {
     try {
       setLoading(true);
       setError("");
-
-      console.log(
-        "Updating captain ETA:",
-        selectedEta
-      );
 
       const response = await axios.patch(
         `http://localhost:3000/rides/${ride._id}/eta`,
@@ -240,15 +383,10 @@ const CaptainRideDetails = () => {
         error.response?.data?.message ||
         "Unable to update ETA"
       );
-
     } finally {
       setLoading(false);
     }
   };
-
-  // =====================================================
-  // CAPTAIN ARRIVED
-  // =====================================================
 
   const handleArrived = async () => {
     await updateRideStatus(
@@ -256,19 +394,11 @@ const CaptainRideDetails = () => {
     );
   };
 
-  // =====================================================
-  // START RIDE
-  // =====================================================
-
   const handleStartRide = async () => {
     await updateRideStatus(
       "started"
     );
   };
-
-  // =====================================================
-  // COMPLETE RIDE
-  // =====================================================
 
   const handleCompleteRide = async () => {
     await updateRideStatus(
@@ -276,24 +406,46 @@ const CaptainRideDetails = () => {
     );
   };
 
-  // =====================================================
-  // BACK
-  // =====================================================
-
   const handleBack = () => {
     navigate(-1);
   };
+  const fetchRide = async () => {
+  if (!ride?._id) {
+    return;
+  }
 
-  // =====================================================
-  // NO RIDE
-  // =====================================================
+  try {
+    setLoading(true);
+    setError("");
+
+    const response = await axios.get(
+      `http://localhost:3000/rides/${ride._id}`,
+      getAuthConfig()
+    );
+
+    if (response.data.ride) {
+      setRide(response.data.ride);
+
+      setSelectedEta(
+        response.data.ride.captainEta || null
+      );
+    }
+  } catch (error) {
+    console.error("Fetch ride error:", error);
+
+    setError(
+      error.response?.data?.message ||
+      "Unable to fetch ride details"
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (!ride) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f5f5] px-5">
-
         <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-sm">
-
           <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-50 text-3xl">
             !
           </div>
@@ -307,31 +459,22 @@ const CaptainRideDetails = () => {
           </p>
 
           <button
-            onClick={() => navigate("/")}
+            onClick={() =>
+              navigate("/")
+            }
             className="mt-6 w-full rounded-2xl bg-black px-6 py-4 text-sm font-bold text-white"
           >
             Back to Home
           </button>
-
         </div>
-
       </div>
     );
   }
 
-  // =====================================================
-  // PAGE
-  // =====================================================
-
   return (
     <div className="min-h-screen bg-[#f5f5f5] pb-10">
 
-      {/* =================================================
-          HEADER
-      ================================================= */}
-
       <header className="sticky top-0 z-40 border-b border-gray-200 bg-white">
-
         <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4">
 
           <button
@@ -342,7 +485,6 @@ const CaptainRideDetails = () => {
           </button>
 
           <div className="text-center">
-
             <h1 className="text-lg font-black text-gray-900">
               Ride Details
             </h1>
@@ -350,33 +492,20 @@ const CaptainRideDetails = () => {
             <p className="text-xs text-gray-400">
               Captain Dashboard
             </p>
-
           </div>
 
           <div className="h-10 w-10" />
-
         </div>
-
       </header>
 
-      {/* =================================================
-          MAIN
-      ================================================= */}
-
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-5">
-
-        {/* =================================================
-            STATUS BANNER
-        ================================================= */}
 
         <section
           className={`rounded-3xl border p-5 ${getStatusColor()}`}
         >
-
           <div className="flex items-center gap-4">
 
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white text-2xl shadow-sm">
-
               {rideStatus === "completed"
                 ? "✓"
                 : rideStatus === "started"
@@ -384,11 +513,9 @@ const CaptainRideDetails = () => {
                 : rideStatus === "captain_arrived"
                 ? "📍"
                 : "🚗"}
-
             </div>
 
             <div>
-
               <p className="text-xs font-bold uppercase tracking-wider opacity-70">
                 Current Status
               </p>
@@ -396,33 +523,22 @@ const CaptainRideDetails = () => {
               <h2 className="mt-1 text-xl font-black">
                 {getStatusText()}
               </h2>
-
             </div>
-
           </div>
-
         </section>
 
-        {/* =================================================
-            USER DETAILS
-        ================================================= */}
-
         <section className="mt-5 rounded-3xl bg-white p-6 shadow-sm">
-
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
 
             <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-black text-2xl font-black text-white">
-
               {userFirstName
                 ? userFirstName
                     .charAt(0)
                     .toUpperCase()
                 : "U"}
-
             </div>
 
             <div className="flex-1">
-
               <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
                 Passenger
               </p>
@@ -434,7 +550,6 @@ const CaptainRideDetails = () => {
               <p className="mt-2 text-sm text-gray-500">
                 {userEmail}
               </p>
-
             </div>
 
             <button
@@ -443,17 +558,56 @@ const CaptainRideDetails = () => {
             >
               📞
             </button>
-
           </div>
-
         </section>
 
-        {/* =================================================
-            ETA SECTION
-        ================================================= */}
+        <section className="mt-5 rounded-3xl border border-green-100 bg-green-50 p-5">
+          <div className="flex items-center gap-4">
+
+            <div
+              className={`flex h-12 w-12 items-center justify-center rounded-full text-xl text-white ${
+                locationStatus === "connected"
+                  ? "bg-green-500"
+                  : locationStatus === "error"
+                  ? "bg-red-500"
+                  : "bg-yellow-500"
+              }`}
+            >
+              📍
+            </div>
+
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-green-600">
+                Live Location
+              </p>
+
+              <p className="mt-1 text-lg font-black text-green-900">
+                {locationStatus ===
+                "connected"
+                  ? "Location is being shared"
+                  : locationStatus ===
+                    "error"
+                  ? "Location unavailable"
+                  : "Connecting..."}
+              </p>
+
+              {captainLocation && (
+                <p className="mt-1 text-xs text-green-700">
+                  GPS:{" "}
+                  {captainLocation.lat.toFixed(
+                    5
+                  )}
+                  ,{" "}
+                  {captainLocation.lng.toFixed(
+                    5
+                  )}
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
 
         {rideStatus === "accepted" && (
-
           <section className="mt-5 rounded-3xl bg-white p-6 shadow-sm">
 
             <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
@@ -470,28 +624,27 @@ const CaptainRideDetails = () => {
             </p>
 
             <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-
               {[5, 10, 15, 20].map(
                 (minutes) => (
-
                   <button
                     key={minutes}
                     onClick={() =>
-                      setSelectedEta(minutes)
+                      setSelectedEta(
+                        minutes
+                      )
                     }
                     disabled={loading}
                     className={`rounded-2xl border-2 px-4 py-4 text-sm font-bold transition ${
-                      selectedEta === minutes
+                      selectedEta ===
+                      minutes
                         ? "border-black bg-black text-white"
                         : "border-gray-200 bg-white text-gray-700 hover:border-gray-400"
                     }`}
                   >
                     {minutes} min
                   </button>
-
                 )
               )}
-
             </div>
 
             <button
@@ -502,56 +655,39 @@ const CaptainRideDetails = () => {
               }
               className="mt-5 w-full rounded-2xl bg-black px-6 py-4 text-sm font-bold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
-
               {loading
                 ? "Updating..."
                 : ride?.captainEta
                 ? `Update Arrival Time (${ride.captainEta} min)`
                 : "Confirm Arrival Time"}
-
             </button>
-
           </section>
-
         )}
-
-        {/* =================================================
-            CURRENT ETA
-        ================================================= */}
 
         {ride?.captainEta &&
           rideStatus !== "completed" &&
           rideStatus !== "cancelled" && (
+            <section className="mt-5 rounded-3xl border border-blue-100 bg-blue-50 p-5">
 
-          <section className="mt-5 rounded-3xl border border-blue-100 bg-blue-50 p-5">
+              <div className="flex items-center gap-4">
 
-            <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500 text-xl text-white">
+                  ⏱️
+                </div>
 
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500 text-xl text-white">
-                ⏱️
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-blue-500">
+                    Captain ETA
+                  </p>
+
+                  <p className="mt-1 text-xl font-black text-blue-900">
+                    {ride.captainEta} minutes
+                  </p>
+                </div>
+
               </div>
-
-              <div>
-
-                <p className="text-xs font-bold uppercase tracking-wider text-blue-500">
-                  Captain ETA
-                </p>
-
-                <p className="mt-1 text-xl font-black text-blue-900">
-                  {ride.captainEta} minutes
-                </p>
-
-              </div>
-
-            </div>
-
-          </section>
-
-        )}
-
-        {/* =================================================
-            RIDE ROUTE
-        ================================================= */}
+            </section>
+          )}
 
         <section className="mt-5 rounded-3xl bg-white p-6 shadow-sm">
 
@@ -603,12 +739,9 @@ const CaptainRideDetails = () => {
 
           </div>
 
-          {/* TRIP STATS */}
-
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
 
             <div className="rounded-2xl bg-gray-50 p-4">
-
               <p className="text-xs text-gray-400">
                 Distance
               </p>
@@ -620,11 +753,9 @@ const CaptainRideDetails = () => {
                     ).toFixed(1)} km`
                   : "--"}
               </p>
-
             </div>
 
             <div className="rounded-2xl bg-gray-50 p-4">
-
               <p className="text-xs text-gray-400">
                 Duration
               </p>
@@ -636,11 +767,9 @@ const CaptainRideDetails = () => {
                     )} min`
                   : "--"}
               </p>
-
             </div>
 
             <div className="rounded-2xl bg-gray-50 p-4">
-
               <p className="text-xs text-gray-400">
                 Fare
               </p>
@@ -653,23 +782,16 @@ const CaptainRideDetails = () => {
                     ).toFixed(0)
                   : "0"}
               </p>
-
             </div>
 
           </div>
-
         </section>
-
-        {/* =================================================
-            VEHICLE
-        ================================================= */}
 
         <section className="mt-5 rounded-3xl bg-white p-6 shadow-sm">
 
           <div className="flex items-center justify-between">
 
             <div>
-
               <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
                 Vehicle
               </p>
@@ -677,7 +799,6 @@ const CaptainRideDetails = () => {
               <h2 className="mt-1 text-xl font-black capitalize text-gray-900">
                 {vehicleType}
               </h2>
-
             </div>
 
             <div className="text-4xl">
@@ -688,34 +809,17 @@ const CaptainRideDetails = () => {
 
         </section>
 
-        {/* =================================================
-            ERROR
-        ================================================= */}
-
         {error && (
-
           <div className="mt-5 rounded-2xl border border-red-100 bg-red-50 p-4">
-
             <p className="text-sm font-bold text-red-700">
               {error}
             </p>
-
           </div>
-
         )}
-
-        {/* =================================================
-            ACTION BUTTONS
-        ================================================= */}
 
         <section className="mt-5">
 
-          {/* ===============================================
-              ACCEPTED → CAPTAIN ARRIVED
-          =============================================== */}
-
           {rideStatus === "accepted" && (
-
             <button
               onClick={handleArrived}
               disabled={
@@ -724,61 +828,38 @@ const CaptainRideDetails = () => {
               }
               className="w-full rounded-2xl bg-purple-600 px-6 py-4 text-sm font-bold text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-
               {loading
                 ? "Updating..."
                 : "📍 I Have Arrived"}
-
             </button>
-
           )}
 
-          {/* ===============================================
-              CAPTAIN ARRIVED → START RIDE
-          =============================================== */}
-
-          {rideStatus === "captain_arrived" && (
-
+          {rideStatus ===
+            "captain_arrived" && (
             <button
               onClick={handleStartRide}
               disabled={loading}
               className="w-full rounded-2xl bg-blue-600 px-6 py-4 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
             >
-
               {loading
                 ? "Updating..."
                 : "🚘 Start Ride"}
-
             </button>
-
           )}
 
-          {/* ===============================================
-              STARTED → COMPLETE RIDE
-          =============================================== */}
-
           {rideStatus === "started" && (
-
             <button
               onClick={handleCompleteRide}
               disabled={loading}
               className="w-full rounded-2xl bg-green-600 px-6 py-4 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50"
             >
-
               {loading
                 ? "Updating..."
                 : "✓ Complete Ride"}
-
             </button>
-
           )}
 
-          {/* ===============================================
-              COMPLETED
-          =============================================== */}
-
           {rideStatus === "completed" && (
-
             <div className="rounded-2xl border border-green-100 bg-green-50 p-5 text-center">
 
               <p className="text-lg font-black text-green-800">
@@ -790,15 +871,9 @@ const CaptainRideDetails = () => {
               </p>
 
             </div>
-
           )}
 
-          {/* ===============================================
-              CANCELLED
-          =============================================== */}
-
           {rideStatus === "cancelled" && (
-
             <div className="rounded-2xl border border-red-100 bg-red-50 p-5 text-center">
 
               <p className="text-lg font-black text-red-800">
@@ -810,14 +885,9 @@ const CaptainRideDetails = () => {
               </p>
 
             </div>
-
           )}
 
         </section>
-
-        {/* =================================================
-            RIDE ID
-        ================================================= */}
 
         <div className="mt-6 rounded-2xl bg-gray-100 p-4">
 
@@ -832,7 +902,6 @@ const CaptainRideDetails = () => {
         </div>
 
       </main>
-
     </div>
   );
 };

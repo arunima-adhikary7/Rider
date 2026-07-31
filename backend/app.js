@@ -1,3 +1,4 @@
+
 const dotenv = require("dotenv");
 const cookieParser = require("cookie-parser");
 const express = require("express");
@@ -12,8 +13,6 @@ dotenv.config();
 
 const app = express();
 
-// ================= CORS =================
-
 app.use(
   cors({
     origin: "http://localhost:5173",
@@ -21,24 +20,14 @@ app.use(
   })
 );
 
-// ================= MIDDLEWARE =================
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// ================= ROUTES =================
-
 app.use("/users", userRoutes);
-
 app.use("/captain", captainRoutes);
-
 app.use("/maps", mapsRoutes);
-
-// Ride routes
 app.use("/rides", rideRoutes);
-
-// ================= TEST ROUTE =================
 
 app.get("/", (req, res) => {
   res.send("Rider Backend is running");
