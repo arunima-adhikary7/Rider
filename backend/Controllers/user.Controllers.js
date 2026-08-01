@@ -1,126 +1,264 @@
-const userModel=require('../Models/User.model.js');
+const userModel = require("../Models/User.model.js");
 const userService = require("../Services/user.service.js");
-const {validationResult}=require('express-validator');
-const blacklistService=require('../Models/blacklistToken.model.js');
-module.exports.registerUser=async(req,res)=>{
-    try{
-    const errors=validationResult(req);
-    if(!errors.isEmpty())
-    {
-        return res.status(400).json({errors:errors.array()});
-    }
-const {fullname:{firstname,lastname},email,password}=req.body;
-const hashedPassword=await userModel.hashPassword(password);
-const user=await userService.createUser({
-    firstname,
-    lastname,
-    email,
-    password:hashedPassword
-});
-const token=user.generateAuthToken();
-res.status(201).json({user,token});
-    }
-    catch(e)
-    {
-        console.error(e);
-        res.status(400).json({
-            message:"Error registering user"
-        });
-    }
+const { validationResult } = require("express-validator");
+const BlacklistToken = require("../Models/blacklistToken.model.js");
 
-};
-module.exports.loginUser = async (req, res) => {
-    const errors = validationResult(req);
+// =====================================================
+// REGISTER USER
+// =====================================================
 
-    if (!errors.isEmpty()) {
-        return res.status(400).json({
-            errors: errors.array()
-        });
-    }
-
-    const { email, password } = req.body;
-
+module.exports.registerUser = async (req, res) => {
     try {
-        const user = await userModel
-            .findOne({ email })
-            .select('+password');
+        // Validate request
+        const errors = validationResult(req);
 
-        // Email does not exist
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                errors: errors.array(),
+            });
+        }
+
+        // Get user data
+        const {
+            fullname: {
+                firstname,
+                lastname,
+            },
+            email,
+            password,
+        } = req.body;
+
+        // Hash password
+        const hashedPassword =
+            await userModel.hashPassword(password);
+
+        // Create user
+        const user = await userService.createUser({
+            firstname,
+            lastname,
+            email,
+            password: hashedPassword,
+        });
+
+        // Generate JWT
+        const token =
+            user.generateAuthToken();
+
+        // Save JWT in HTTP-only cookie
+        res.cookie("token", token, {
+            httpOnly: true,
+
+            // HTTPS required in production
+            secure:
+                process.env.NODE_ENV === "production",
+
+            // Required for Vercel -> Render cross-site cookies
+            sameSite:
+                process.env.NODE_ENV === "production"
+                    ? "none"
+                    : "lax",
+
+            // Cookie expires after 1 day
+            maxAge:
+                24 * 60 * 60 * 1000,
+
+            // Cookie available throughout the application
+            path: "/",
+        });
+
+        // Return response
+        return res.status(201).json({
+            message: "User registered successfully",
+            user,
+            token,
+        });
+
+    } catch (error) {
+        console.error(
+            "Register User Error:",
+            error
+        );
+
+        return res.status(400).json({
+            message: "Error registering user",
+        });
+    }
+};
+
+
+// =====================================================
+// LOGIN USER
+// =====================================================
+
+module.exports.loginUser = async (req, res) => {
+    try {
+        // Validate request
+        const errors =
+            validationResult(req);
+
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                errors: errors.array(),
+            });
+        }
+
+        const {
+            email,
+            password,
+        } = req.body;
+
+        // Find user
+        const user =
+            await userModel
+                .findOne({ email })
+                .select("+password");
+
+        // User does not exist
         if (!user) {
             return res.status(404).json({
-                message: "User not found"
+                message: "User not found",
             });
         }
 
-        // Password is incorrect
-        const isMatch = await user.comparePassword(password);
+        // Compare password
+        const isMatch =
+            await user.comparePassword(
+                password
+            );
 
+        // Incorrect password
         if (!isMatch) {
             return res.status(401).json({
-                message: "Incorrect password"
+                message: "Incorrect password",
             });
         }
-        
-       
 
-        // Login successful
-        const token = user.generateAuthToken();
-         res.cookie('token',token,{
-            httpOnly:true,
-            secure:process.env.NODE_ENV==='production',
-            maxAge:24*60*60*1000
-        })
+        // Generate JWT
+        const token =
+            user.generateAuthToken();
 
-        return res.status(200).json({
-            user,
-            token
+        // Save JWT in cookie
+        res.cookie("token", token, {
+            httpOnly: true,
+
+            secure:
+                process.env.NODE_ENV === "production",
+
+            sameSite:
+                process.env.NODE_ENV === "production"
+                    ? "none"
+                    : "lax",
+
+            maxAge:
+                24 * 60 * 60 * 1000,
+
+            path: "/",
         });
 
-    } catch (e) {
-        console.error(e);
+        // Send response
+        return res.status(200).json({
+            message: "Login successful",
+            user,
+            token,
+        });
+
+    } catch (error) {
+        console.error(
+            "Login User Error:",
+            error
+        );
 
         return res.status(500).json({
-            message: "Error logging in user"
+            message: "Error logging in user",
         });
     }
 };
 
-module.exports.getUserProfile = async(req,res,next)=>{
 
-res.status(200).json(req.user);
-}
+// =====================================================
+// GET USER PROFILE
+// =====================================================
 
-const BlacklistToken = require('../Models/blacklistToken.model.js');
-
-module.exports.logoutUser = async (req, res, next) => {
+module.exports.getUserProfile = async (
+    req,
+    res
+) => {
     try {
+        return res.status(200).json({
+            user: req.user,
+        });
+
+    } catch (error) {
+        console.error(
+            "Get User Profile Error:",
+            error
+        );
+
+        return res.status(500).json({
+            message:
+                "Error fetching user profile",
+        });
+    }
+};
+
+
+// =====================================================
+// LOGOUT USER
+// =====================================================
+
+module.exports.logoutUser = async (
+    req,
+    res
+) => {
+    try {
+        // Get token from cookie
+        // OR Authorization header
         const token =
             req.cookies?.token ||
-            req.headers.authorization?.split(" ")[1];
+            req.headers.authorization
+                ?.split(" ")[1];
 
+        // No token
         if (!token) {
             return res.status(401).json({
-                message: "Unauthorized"
+                message: "Unauthorized",
             });
         }
 
         // Add token to blacklist
         await BlacklistToken.create({
-            token
+            token,
         });
 
         // Clear cookie
-        res.clearCookie("token");
+        res.clearCookie("token", {
+            httpOnly: true,
+
+            secure:
+                process.env.NODE_ENV === "production",
+
+            sameSite:
+                process.env.NODE_ENV === "production"
+                    ? "none"
+                    : "lax",
+
+            path: "/",
+        });
 
         return res.status(200).json({
-            message: "Logged out successfully"
+            message:
+                "Logged out successfully",
         });
 
     } catch (error) {
-        console.error(error);
+        console.error(
+            "Logout User Error:",
+            error
+        );
 
         return res.status(500).json({
-            message: "Error logging out"
+            message:
+                "Error logging out",
         });
     }
 };

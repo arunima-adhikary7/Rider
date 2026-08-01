@@ -5,8 +5,10 @@ import {
   useState,
 } from "react";
 
-const AuthContext = createContext();
 import API_URL from "../config/api.js";
+
+const AuthContext = createContext();
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [captain, setCaptain] = useState(null);
@@ -17,42 +19,58 @@ export const AuthProvider = ({ children }) => {
   // =====================================================
 
   const checkAuth = async () => {
-    setLoading(true);
-
     try {
-      // Check USER and CAPTAIN at the same time
-      const [userResponse, captainResponse] =
-        await Promise.all([
-          fetch(`${API_URL}/users/profile`, {
-            method: "GET",
-            credentials: "include",
-          }),
-
-          fetch(`${API_URL}/captain/profile`, {
-            method: "GET",
-            credentials: "include",
-          }),
-        ]);
+      setLoading(true);
 
       // =================================================
-      // CHECK USER
+      // FIRST: CHECK USER
       // =================================================
+
+      const userResponse = await fetch(
+        `${API_URL}/users/profile`,
+        {
+          method: "GET",
+
+          // Browser automatically sends HTTP-only cookie
+          credentials: "include",
+        }
+      );
 
       if (userResponse.ok) {
-        const userData = await userResponse.json();
+        const userData =
+          await userResponse.json();
 
-        console.log("Logged in user:", userData);
+        console.log(
+          "Logged in user:",
+          userData
+        );
 
         setUser(
           userData.user || userData
         );
-      } else {
-        setUser(null);
+
+        // User logged in
+        setCaptain(null);
+
+        return;
       }
 
+      // User not logged in
+      setUser(null);
+
       // =================================================
-      // CHECK CAPTAIN
+      // SECOND: CHECK CAPTAIN
       // =================================================
+
+      const captainResponse = await fetch(
+        `${API_URL}/captain/profile`,
+        {
+          method: "GET",
+
+          // Browser automatically sends HTTP-only cookie
+          credentials: "include",
+        }
+      );
 
       if (captainResponse.ok) {
         const captainData =
@@ -64,9 +82,15 @@ export const AuthProvider = ({ children }) => {
         );
 
         setCaptain(
-          captainData.captain || captainData
+          captainData.captain ||
+          captainData
         );
+
+        // Captain logged in
+        setUser(null);
+
       } else {
+        // Nobody logged in
         setCaptain(null);
       }
 
@@ -86,7 +110,7 @@ export const AuthProvider = ({ children }) => {
 
 
   // =====================================================
-  // RUN AUTH CHECK WHEN APP STARTS
+  // CHECK AUTH WHEN APP LOADS / REFRESHES
   // =====================================================
 
   useEffect(() => {
@@ -98,49 +122,73 @@ export const AuthProvider = ({ children }) => {
   // USER LOGIN
   // =====================================================
 
-  const login = async (email, password) => {
-    const response = await fetch(
-      `${API_URL}/users/login`,
-      {
-        method: "POST",
+  const login = async (
+    email,
+    password
+  ) => {
+    try {
+      const response = await fetch(
+        `${API_URL}/users/login`,
+        {
+          method: "POST",
 
-        headers: {
-          "Content-Type": "application/json",
-        },
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
 
-        credentials: "include",
+          // Important:
+          // Allows browser to receive/store
+          // HTTP-only authentication cookie
+          credentials: "include",
 
-        body: JSON.stringify({
-          email,
-          password,
-        }),
-      }
-    );
-
-    const data = await response.json();
-
-    console.log(
-      "User login response:",
-      data
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        data.message ||
-        data.errors?.[0]?.msg ||
-        "Login failed"
+          body: JSON.stringify({
+            email,
+            password,
+          }),
+        }
       );
+
+      const data =
+        await response.json();
+
+      console.log(
+        "User login response:",
+        data
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+          data.errors?.[0]?.msg ||
+          "Login failed"
+        );
+      }
+
+      // Backend already sets:
+      // res.cookie("token", token, ...)
+      //
+      // Browser stores the cookie automatically.
+      // We don't need localStorage.
+
+      setUser(
+        data.user || data
+      );
+
+      // User and captain cannot
+      // be logged in simultaneously
+      setCaptain(null);
+
+      return data;
+
+    } catch (error) {
+      console.error(
+        "User login error:",
+        error
+      );
+
+      throw error;
     }
-
-    // Set logged-in user
-    setUser(
-      data.user || data
-    );
-
-    // User and captain should not be active together
-    setCaptain(null);
-
-    return data;
   };
 
 
@@ -152,48 +200,65 @@ export const AuthProvider = ({ children }) => {
     email,
     password
   ) => {
-    const response = await fetch(
-      `${API_URL}/captain/login`,
-      {
-        method: "POST",
+    try {
+      const response = await fetch(
+        `${API_URL}/captain/login`,
+        {
+          method: "POST",
 
-        headers: {
-          "Content-Type": "application/json",
-        },
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
 
-        credentials: "include",
+          // Important:
+          // Allows browser to receive/store
+          // HTTP-only authentication cookie
+          credentials: "include",
 
-        body: JSON.stringify({
-          email,
-          password,
-        }),
-      }
-    );
-
-    const data = await response.json();
-
-    console.log(
-      "Captain login response:",
-      data
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        data.message ||
-        data.errors?.[0]?.msg ||
-        "Captain login failed"
+          body: JSON.stringify({
+            email,
+            password,
+          }),
+        }
       );
+
+      const data =
+        await response.json();
+
+      console.log(
+        "Captain login response:",
+        data
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+          data.errors?.[0]?.msg ||
+          "Captain login failed"
+        );
+      }
+
+      // Backend sets the HTTP-only cookie.
+      // Browser automatically stores it.
+
+      setCaptain(
+        data.captain || data
+      );
+
+      // Clear user
+      setUser(null);
+
+      return data;
+
+    } catch (error) {
+      console.error(
+        "Captain login error:",
+        error
+      );
+
+      throw error;
     }
-
-    // Set logged-in captain
-    setCaptain(
-      data.captain || data
-    );
-
-    // User and captain should not be active together
-    setUser(null);
-
-    return data;
   };
 
 
@@ -209,11 +274,15 @@ export const AuthProvider = ({ children }) => {
         `${API_URL}/users/logout`,
         {
           method: "GET",
+
+          // Sends HTTP-only token cookie
+          // to backend
           credentials: "include",
         }
       );
 
-      const data = await response.json();
+      const data =
+        await response.json();
 
       console.log(
         "User logout response:",
@@ -227,8 +296,11 @@ export const AuthProvider = ({ children }) => {
         );
       }
 
-      // Remove user from frontend state
+      // Backend clears token cookie
       setUser(null);
+
+      // Safety
+      setCaptain(null);
 
     } catch (error) {
       console.error(
@@ -252,15 +324,16 @@ export const AuthProvider = ({ children }) => {
       const response = await fetch(
         `${API_URL}/captain/logout`,
         {
-          // IMPORTANT:
-          // Backend route is POST
           method: "POST",
 
+          // Sends HTTP-only token cookie
+          // to backend
           credentials: "include",
         }
       );
 
-      const data = await response.json();
+      const data =
+        await response.json();
 
       console.log(
         "Captain logout response:",
@@ -274,8 +347,11 @@ export const AuthProvider = ({ children }) => {
         );
       }
 
-      // Remove captain from frontend state
+      // Backend clears token cookie
       setCaptain(null);
+
+      // Safety
+      setUser(null);
 
     } catch (error) {
       console.error(
@@ -301,6 +377,7 @@ export const AuthProvider = ({ children }) => {
 
         user,
         setUser,
+
         login,
         logout,
 
@@ -310,6 +387,7 @@ export const AuthProvider = ({ children }) => {
 
         captain,
         setCaptain,
+
         captainLogin,
         captainLogout,
 
@@ -319,7 +397,6 @@ export const AuthProvider = ({ children }) => {
 
         loading,
 
-        // Manual authentication check
         checkAuth,
       }}
     >
@@ -336,3 +413,5 @@ export const AuthProvider = ({ children }) => {
 export const useAuth = () => {
   return useContext(AuthContext);
 };
+
+export default AuthContext;
