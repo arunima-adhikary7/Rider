@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
+import API_URL from "../config/api.js";
 
 import {
   MapContainer,
@@ -245,7 +246,7 @@ const UserLiveRideTracking = () => {
 
         const response =
           await fetch(
-            `http://localhost:3000/maps/get-route?${params.toString()}`,
+            `${API_URL}/maps/get-route?${params.toString()}`,
             {
               method: "GET",
 
@@ -349,7 +350,7 @@ const UserLiveRideTracking = () => {
     // -----------------------------------------------
 
     const socket =
-      io("http://localhost:3000", {
+      io(`${API_URL}`, {
         withCredentials: true,
 
         transports: [

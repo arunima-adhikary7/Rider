@@ -15,7 +15,7 @@ import { useNavigate } from "react-router-dom";
 import L from "leaflet";
 
 import "leaflet/dist/leaflet.css";
-
+import API_URL from "../config/api.js";
 delete L.Icon.Default.prototype._getIconUrl;
 
 L.Icon.Default.mergeOptions({
@@ -330,7 +330,7 @@ const Map = () => {
         });
 
         const url =
-          `http://localhost:3000/maps/get-route?${params.toString()}`;
+          `${API_URL}/maps/get-route?${params.toString()}`;
 
         const response = await fetch(url, {
           method: "GET",

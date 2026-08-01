@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
 import CaptainNavigationMap from "./CaptainNavigationMap";
-
+import API_URL from "../config/api.js";
 const CaptainRideDetails = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -167,7 +167,7 @@ const CaptainRideDetails = () => {
       setError("");
 
       const response = await axios.get(
-        `http://localhost:3000/rides/${ride._id}`,
+        `${API_URL}/rides/${ride._id}`,
         getAuthConfig()
       );
 
@@ -261,7 +261,7 @@ const CaptainRideDetails = () => {
     // ===================================================
 
     const socket = io(
-      "http://localhost:3000",
+      `${API_URL}`,
       {
         withCredentials: true,
 
@@ -666,7 +666,7 @@ const CaptainRideDetails = () => {
 
       const response =
         await axios.patch(
-          `http://localhost:3000/rides/${ride._id}/status`,
+          `${API_URL}/rides/${ride._id}/status`,
           {
             status,
           },
@@ -736,7 +736,7 @@ const CaptainRideDetails = () => {
 
       const response =
         await axios.patch(
-          `http://localhost:3000/rides/${ride._id}/eta`,
+          `${API_URL}/rides/${ride._id}/eta`,
           {
             eta: Number(
               selectedEta

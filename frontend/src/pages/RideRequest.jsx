@@ -2,6 +2,7 @@
 import { io } from "socket.io-client";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import API_URL from "../config/api.js";
 
 const RideRequested = () => {
   const navigate = useNavigate();
@@ -92,7 +93,7 @@ const RideRequested = () => {
     // =========================
 
     const socket = io(
-      "http://localhost:3000",
+      `${API_URL}`,
       {
         withCredentials: true,
       }

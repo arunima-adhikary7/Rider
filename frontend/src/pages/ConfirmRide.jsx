@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-
+import API_URL from "../config/api.js";
 const ConfirmRide = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -26,7 +26,7 @@ const ConfirmRide = () => {
         setLoadingUser(true);
 
         const response = await fetch(
-          "http://localhost:3000/users/profile",
+          `${API_URL}/users/profile`,
           {
             method: "GET",
             credentials: "include",
@@ -111,7 +111,7 @@ const ConfirmRide = () => {
       };
 
       const response = await fetch(
-        "http://localhost:3000/rides/create",
+        `${API_URL}/rides/create`,
         {
           method: "POST",
           headers: {

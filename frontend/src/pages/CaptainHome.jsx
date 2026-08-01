@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
-
+import API_URL from "../config/api.js";
 import CaptainNavigationMap from "../pages/CaptainNavigationMap";
 
 const CaptainHome = () => {
@@ -57,7 +57,7 @@ const CaptainHome = () => {
         setError("");
 
         const response = await fetch(
-          "http://localhost:3000/captain/profile",
+          `${API_URL}/captain/profile`,
           {
             method: "GET",
             credentials: "include",
@@ -202,7 +202,7 @@ const CaptainHome = () => {
     );
 
     const socket = io(
-      "http://localhost:3000",
+      `${API_URL}`,
       {
         withCredentials: true,
       }
@@ -354,7 +354,7 @@ const CaptainHome = () => {
   const handleLogout = async () => {
     try {
       await fetch(
-        "http://localhost:3000/captain/logout",
+        `${API_URL}/captain/logout`,
         {
           method: "POST",
           credentials: "include",
@@ -404,7 +404,7 @@ const CaptainHome = () => {
 
       const response =
         await fetch(
-          `http://localhost:3000/rides/${rideRequest.rideId}/accept`,
+          `${API_URL}/rides/${rideRequest.rideId}/accept`,
           {
             method: "POST",
             credentials: "include",

@@ -6,7 +6,7 @@ import {
 } from "react";
 
 const AuthContext = createContext();
-
+import API_URL from "../config/api.js";
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [captain, setCaptain] = useState(null);
@@ -23,12 +23,12 @@ export const AuthProvider = ({ children }) => {
       // Check USER and CAPTAIN at the same time
       const [userResponse, captainResponse] =
         await Promise.all([
-          fetch("http://localhost:3000/users/profile", {
+          fetch(`${API_URL}/users/profile`, {
             method: "GET",
             credentials: "include",
           }),
 
-          fetch("http://localhost:3000/captain/profile", {
+          fetch(`${API_URL}/captain/profile`, {
             method: "GET",
             credentials: "include",
           }),
@@ -100,7 +100,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     const response = await fetch(
-      "http://localhost:3000/users/login",
+      `${API_URL}/users/login`,
       {
         method: "POST",
 
@@ -153,7 +153,7 @@ export const AuthProvider = ({ children }) => {
     password
   ) => {
     const response = await fetch(
-      "http://localhost:3000/captain/login",
+      `${API_URL}/captain/login`,
       {
         method: "POST",
 
@@ -206,7 +206,7 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       const response = await fetch(
-        "http://localhost:3000/users/logout",
+        `${API_URL}/users/logout`,
         {
           method: "GET",
           credentials: "include",
@@ -250,7 +250,7 @@ export const AuthProvider = ({ children }) => {
   const captainLogout = async () => {
     try {
       const response = await fetch(
-        "http://localhost:3000/captain/logout",
+        `${API_URL}/captain/logout`,
         {
           // IMPORTANT:
           // Backend route is POST

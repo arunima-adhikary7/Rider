@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
 import CaptainLiveMap from "../pages/CaptainLiveMap";
+import API_URL from "../config/api.js";
 
 const CaptainFound = () => {
   const navigate = useNavigate();
@@ -60,7 +61,7 @@ const CaptainFound = () => {
     // ---------------------------------------------------
 
     const socket = io(
-      "http://localhost:3000",
+      `${API_URL}`,
       {
         withCredentials: true,
       }

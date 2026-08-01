@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-
+import API_URL from "../config/api.js";
 const CaptainLogin = () => {
   const navigate = useNavigate();
 
@@ -34,7 +34,7 @@ const CaptainLogin = () => {
 
     try {
       const response = await fetch(
-        "http://localhost:3000/captain/login",
+        `${API_URL}/captain/login`,
         {
           method: "POST",
 
