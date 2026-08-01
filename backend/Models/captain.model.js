@@ -308,9 +308,11 @@ captainSchema.statics.hashPassword = async function (
 };
 
 
-const captainModel = mongoose.model(
-  "captain",
-  captainSchema
-);
+const captainModel =
+  mongoose.models.captain ||
+  mongoose.model(
+    "captain",
+    captainSchema
+  );
 
 module.exports = captainModel;
