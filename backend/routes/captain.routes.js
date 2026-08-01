@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { body } = require('express-validator');
 
-const captainController = require('../Controllers/captain.Controllers.js');
+const captainController = require('../Controllers/captain.controllers.js');
 const authMiddleware = require('../middleware/auth.middleware.js');
 
 router.post(
