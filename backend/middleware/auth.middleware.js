@@ -83,13 +83,12 @@ module.exports.authCaptain = async (req, res, next) => {
                 message: "Token is blacklisted"
             });
         }
-
         // Verify JWT
         const decoded = jwt.verify(
             token,
             process.env.JWT_SECRET
         );
-
+       
         // Find captain using ID from JWT
         const captain = await captainModel.findById(
             decoded._id
