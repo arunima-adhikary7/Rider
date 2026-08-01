@@ -1,3 +1,4 @@
+
 require("dotenv").config();
 
 const http = require("http");
@@ -28,13 +29,48 @@ const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
 
 // =====================================================
+// ALLOWED FRONTEND ORIGINS
+// =====================================================
+
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://rider-hazel.vercel.app",
+];
+
+// =====================================================
 // SOCKET.IO
 // =====================================================
 
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: (origin, callback) => {
+      // Allow requests without origin
+      // Example: Postman or server-to-server
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      // Allow localhost and Vercel
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.log(
+        "Socket.IO CORS blocked origin:",
+        origin
+      );
+
+      return callback(
+        new Error("Not allowed by Socket.IO CORS")
+      );
+    },
+
     credentials: true,
+
+    methods: [
+      "GET",
+      "POST",
+    ],
   },
 });
 
@@ -49,10 +85,12 @@ app.set("io", io);
 // =====================================================
 
 io.on("connection", (socket) => {
+
   console.log(
     "Socket connected:",
     socket.id
   );
+
 
   // ===================================================
   // CAPTAIN JOINS
@@ -62,6 +100,7 @@ io.on("connection", (socket) => {
     "join-captain",
     async (captainId) => {
       try {
+
         if (!captainId) {
           console.log(
             "Captain ID missing"
@@ -100,14 +139,18 @@ io.on("connection", (socket) => {
         console.log(
           "Captain socketId updated successfully"
         );
+
       } catch (error) {
+
         console.error(
           "Captain socket error:",
           error
         );
+
       }
     }
   );
+
 
   // ===================================================
   // USER JOINS
@@ -117,6 +160,7 @@ io.on("connection", (socket) => {
     "join-user",
     async (userId) => {
       try {
+
         if (!userId) {
           console.log(
             "User ID missing"
@@ -154,14 +198,18 @@ io.on("connection", (socket) => {
         console.log(
           "User socketId updated successfully"
         );
+
       } catch (error) {
+
         console.error(
           "User socket error:",
           error
         );
+
       }
     }
   );
+
 
   // ===================================================
   // USER JOINS RIDE ROOM
@@ -173,7 +221,9 @@ io.on("connection", (socket) => {
       rideId,
       userId,
     }) => {
+
       try {
+
         if (!rideId) {
           console.log(
             "Ride ID missing"
@@ -181,10 +231,6 @@ io.on("connection", (socket) => {
 
           return;
         }
-
-        // =============================================
-        // SAME ROOM FOR USER + CAPTAIN
-        // =============================================
 
         const roomName =
           `ride-${rideId}`;
@@ -197,11 +243,13 @@ io.on("connection", (socket) => {
           `Socket ${socket.id} joined ride room ${roomName}`
         );
 
+
         // =============================================
         // UPDATE USER SOCKET ID
         // =============================================
 
         if (userId) {
+
           await userModel.findByIdAndUpdate(
             userId,
             {
@@ -215,14 +263,18 @@ io.on("connection", (socket) => {
             "User socketId updated from ride room"
           );
         }
+
       } catch (error) {
+
         console.error(
           "Join ride error:",
           error
         );
+
       }
     }
   );
+
 
   // ===================================================
   // CAPTAIN JOINS RIDE ROOM
@@ -233,7 +285,9 @@ io.on("connection", (socket) => {
     ({
       rideId,
     }) => {
+
       try {
+
         if (!rideId) {
           console.log(
             "Ride ID missing for captain"
@@ -241,11 +295,6 @@ io.on("connection", (socket) => {
 
           return;
         }
-
-        // =============================================
-        // IMPORTANT
-        // SAME ROOM AS USER
-        // =============================================
 
         const roomName =
           `ride-${rideId}`;
@@ -257,14 +306,18 @@ io.on("connection", (socket) => {
         console.log(
           `Captain socket ${socket.id} joined ride room ${roomName}`
         );
+
       } catch (error) {
+
         console.error(
           "Captain join ride error:",
           error
         );
+
       }
     }
   );
+
 
   // ===================================================
   // USER LIVE LOCATION UPDATE
@@ -279,7 +332,9 @@ io.on("connection", (socket) => {
       lat,
       lng,
     }) => {
+
       try {
+
         console.log(
           "User location received:",
           {
@@ -290,15 +345,13 @@ io.on("connection", (socket) => {
           }
         );
 
-        // =============================================
-        // VALIDATION
-        // =============================================
 
         if (
           !rideId ||
           lat === undefined ||
           lng === undefined
         ) {
+
           console.log(
             "Invalid user location data"
           );
@@ -306,16 +359,19 @@ io.on("connection", (socket) => {
           return;
         }
 
+
         const latitude =
           Number(lat);
 
         const longitude =
           Number(lng);
 
+
         if (
           Number.isNaN(latitude) ||
           Number.isNaN(longitude)
         ) {
+
           console.log(
             "Invalid user latitude or longitude"
           );
@@ -323,24 +379,20 @@ io.on("connection", (socket) => {
           return;
         }
 
-        // =============================================
-        // USER LOCATION DATA
-        // =============================================
 
         const locationData = {
+
           rideId,
+
           userId,
 
           location: {
             lat: latitude,
             lng: longitude,
           },
+
         };
 
-        // =============================================
-        // SEND USER LOCATION
-        // TO CAPTAIN IN SAME RIDE ROOM
-        // =============================================
 
         io.to(
           `ride-${rideId}`
@@ -349,19 +401,24 @@ io.on("connection", (socket) => {
           locationData
         );
 
+
         console.log(
           `User location sent to ride ${rideId}:`,
           latitude,
           longitude
         );
+
       } catch (error) {
+
         console.error(
           "User location update error:",
           error
         );
+
       }
     }
   );
+
 
   // ===================================================
   // CAPTAIN LIVE LOCATION UPDATE
@@ -376,10 +433,8 @@ io.on("connection", (socket) => {
       lat,
       lng,
     }) => {
+
       try {
-        // =============================================
-        // VALIDATE REQUIRED DATA
-        // =============================================
 
         if (
           !rideId ||
@@ -387,6 +442,7 @@ io.on("connection", (socket) => {
           lat === undefined ||
           lng === undefined
         ) {
+
           console.log(
             "Invalid captain location data"
           );
@@ -394,9 +450,6 @@ io.on("connection", (socket) => {
           return;
         }
 
-        // =============================================
-        // CONVERT COORDINATES
-        // =============================================
 
         const latitude =
           Number(lat);
@@ -404,14 +457,12 @@ io.on("connection", (socket) => {
         const longitude =
           Number(lng);
 
-        // =============================================
-        // VALIDATE COORDINATES
-        // =============================================
 
         if (
           Number.isNaN(latitude) ||
           Number.isNaN(longitude)
         ) {
+
           console.log(
             "Invalid latitude or longitude"
           );
@@ -419,8 +470,9 @@ io.on("connection", (socket) => {
           return;
         }
 
+
         // =============================================
-        // UPDATE CAPTAIN LOCATION IN MONGODB
+        // UPDATE CAPTAIN LOCATION
         // =============================================
 
         const updatedCaptain =
@@ -428,6 +480,7 @@ io.on("connection", (socket) => {
             captainId,
             {
               $set: {
+
                 "vehicle.location.lat":
                   latitude,
 
@@ -436,6 +489,7 @@ io.on("connection", (socket) => {
 
                 status:
                   "active",
+
               },
             },
             {
@@ -443,11 +497,9 @@ io.on("connection", (socket) => {
             }
           );
 
-        // =============================================
-        // CAPTAIN NOT FOUND
-        // =============================================
 
         if (!updatedCaptain) {
+
           console.log(
             "Captain not found:",
             captainId
@@ -456,11 +508,13 @@ io.on("connection", (socket) => {
           return;
         }
 
+
         // =============================================
         // LOCATION DATA
         // =============================================
 
         const locationData = {
+
           rideId,
 
           captainId,
@@ -469,11 +523,12 @@ io.on("connection", (socket) => {
             lat: latitude,
             lng: longitude,
           },
+
         };
 
+
         // =============================================
-        // SEND CAPTAIN LOCATION
-        // TO USER + CAPTAIN
+        // SEND TO RIDE ROOM
         // =============================================
 
         io.to(
@@ -483,19 +538,24 @@ io.on("connection", (socket) => {
           locationData
         );
 
+
         console.log(
           `Captain ${captainId} location updated:`,
           latitude,
           longitude
         );
+
       } catch (error) {
+
         console.error(
           "Captain location update error:",
           error
         );
+
       }
     }
   );
+
 
   // ===================================================
   // RIDE STATUS UPDATE
@@ -508,14 +568,18 @@ io.on("connection", (socket) => {
       status,
       ride,
     }) => {
+
       try {
+
         if (!rideId) {
+
           console.log(
             "Ride ID missing"
           );
 
           return;
         }
+
 
         io.to(
           `ride-${rideId}`
@@ -528,17 +592,22 @@ io.on("connection", (socket) => {
           }
         );
 
+
         console.log(
           `Ride ${rideId} status updated to ${status}`
         );
+
       } catch (error) {
+
         console.error(
           "Ride status socket error:",
           error
         );
+
       }
     }
   );
+
 
   // ===================================================
   // CAPTAIN ETA UPDATE
@@ -550,14 +619,18 @@ io.on("connection", (socket) => {
       rideId,
       eta,
     }) => {
+
       try {
+
         if (!rideId) {
+
           console.log(
             "Ride ID missing"
           );
 
           return;
         }
+
 
         io.to(
           `ride-${rideId}`
@@ -569,17 +642,22 @@ io.on("connection", (socket) => {
           }
         );
 
+
         console.log(
           `Captain ETA updated for ride ${rideId}: ${eta} minutes`
         );
+
       } catch (error) {
+
         console.error(
           "Captain ETA socket error:",
           error
         );
+
       }
     }
   );
+
 
   // ===================================================
   // DISCONNECT
@@ -588,12 +666,15 @@ io.on("connection", (socket) => {
   socket.on(
     "disconnect",
     async () => {
+
       console.log(
         "Socket disconnected:",
         socket.id
       );
 
+
       try {
+
         // =============================================
         // CAPTAIN OFFLINE
         // =============================================
@@ -606,11 +687,13 @@ io.on("connection", (socket) => {
             },
             {
               $set: {
+
                 socketId:
                   null,
 
                 status:
                   "inactive",
+
               },
             },
             {
@@ -618,11 +701,15 @@ io.on("connection", (socket) => {
             }
           );
 
+
         if (captain) {
+
           console.log(
             `Captain ${captain._id} marked inactive`
           );
+
         }
+
 
         // =============================================
         // USER SOCKET CLEANUP
@@ -636,8 +723,10 @@ io.on("connection", (socket) => {
             },
             {
               $set: {
+
                 socketId:
                   null,
+
               },
             },
             {
@@ -645,24 +734,33 @@ io.on("connection", (socket) => {
             }
           );
 
+
         if (user) {
+
           console.log(
             `User ${user._id} socketId removed`
           );
+
         }
+
 
         console.log(
           "Socket cleanup completed"
         );
+
       } catch (error) {
+
         console.error(
           "Disconnect error:",
           error
         );
+
       }
     }
   );
+
 });
+
 
 // =====================================================
 // START SERVER
@@ -671,8 +769,16 @@ io.on("connection", (socket) => {
 server.listen(
   PORT,
   () => {
+
     console.log(
       `Server is running on port ${PORT}`
     );
+
+    console.log(
+      "Allowed frontend origins:",
+      allowedOrigins
+    );
+
   }
 );
+
