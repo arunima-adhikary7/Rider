@@ -4,10 +4,10 @@ const http = require("http");
 const { Server } = require("socket.io");
 
 const app = require("./app");
-const connectDB = require("./db/db");
+const connectDB = require("./db/db.js");
 
 const captainModel = require("./Models/captain.model.js");
-const userModel = require("./Models/user.model.js");
+const userModel = require("./Models/User.model.js");
 
 // =====================================================
 // CONNECT DATABASE
